@@ -223,9 +223,16 @@ var LEVELS = [
     "x                           x                                                              x             x",
     "x       !         !        x !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!xooooooooooooo oooooooooooo!x",
     "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  ],
+  [
+    "xxxxxxxxxxxx",
+    "            ",
+    "            ",
+    "@      o    ",
+    "xxxxxxxxxxxx"
   ]
 ];
-
+var LEVELS = loadLevels();
 function Vector(x, y) {
   this.x = x;
   this.y = y;
@@ -323,7 +330,6 @@ function element(name, className) {
   return elem;
 }
 
-
 function DOMDisplay(parent, level) {
   const telaGame = document.getElementById("game");
   this.wrap = telaGame.appendChild(element("div", "game"));
@@ -395,16 +401,15 @@ DOMDisplay.prototype.scrollPlayerIntoView = function () {
 DOMDisplay.prototype.clear = function () {
   try {
     if (this.wrap && this.wrap.parentNode) {
-        this.wrap.parentNode.removeChild(this.wrap);
+      this.wrap.parentNode.removeChild(this.wrap);
     } else {
-        console.log("Parent node or wrap element does not exist.");
-        throw new Error("Parent node or wrap element does not exist.");
+      console.log("Parent node or wrap element does not exist.");
+      throw new Error("Parent node or wrap element does not exist.");
     }
-} catch (error) {
+  } catch (error) {
     console.log("An error occurred: ", error);
-    throw error;  // Re-lançar o erro para interromper a execução
-}
-
+    throw error; // Re-lançar o erro para interromper a execução
+  }
 };
 
 Level.prototype.obstacleAt = function (pos, size) {
@@ -610,7 +615,7 @@ function trackKeys(codes) {
   if (touch) {
     return buttonState;
   }
-  
+
   if (!gamepadSelect) {
     return pressed;
   }
@@ -661,9 +666,11 @@ function runAnimation(frameFunc) {
       stop = frameFunc(timeStep) === false;
     }
     lastTime = time;
-    if (!stop) requestAnimationFrame(frame);
+    if (!stop && gameRunning) {
+      animationFrameId = requestAnimationFrame(frame);
+    }
   }
-  requestAnimationFrame(frame);
+  animationFrameId = requestAnimationFrame(frame);
 }
 
 var arrows = trackKeys(arrowCodes);
@@ -681,11 +688,19 @@ function runLevel(level, Display, andThen) {
   });
 }
 
-let faseAtual = localStorage.getItem('faseAtual') ? parseInt(localStorage.getItem('faseAtual')) : 0;
-function runGame(plans, Display,l) {
+let faseAtual = localStorage.getItem("faseAtual")
+  ? parseInt(localStorage.getItem("faseAtual"))
+  : 0;
+let desb = localStorage.getItem("faseDesb")
+  ? parseInt(localStorage.getItem("faseDesb"))
+  : 0;
+function runGame(plans, Display, l) {
+  if (l == -1) {
+    return;
+  }
   function startLevel(n) {
-    if(l != null){
-      n=l;
+    if (l != null) {
+      n = l;
     }
     runLevel(new Level(plans[n]), Display, function (status) {
       if (status == "lost") {
@@ -693,17 +708,32 @@ function runGame(plans, Display,l) {
         contCoin = 0;
         startLevel(n);
         showPontos();
-      } else if (n < plans.length - 1){
+      } else if (n < plans.length - 1) {
+        if (faseAtual == desb) {
+          desb++;
+          localStorage.setItem("faseDesb", desb);
+        }
         l++;
         startLevel(n + 1);
-      } 
-      else activeModal(win);
+        showPontos();
+      } else {
+        addNewLevel();
+        if (faseAtual == desb) {
+          desb++;
+          localStorage.setItem("faseDesb", desb);
+        }
+        l++;
+        startLevel(n + 1);
+        showPontos();
+      }
     });
-    faseAtual=l;
-    localStorage.setItem('faseAtual', faseAtual);
+    faseAtual = l;
+    localStorage.setItem("faseAtual", faseAtual);
+    if (faseAtual > 7) music();
   }
   totalCoin = 0;
   contCoin = 0;
+  gameRunning = true;
   startLevel(0);
   showPontos();
 }
@@ -734,11 +764,22 @@ var loseSound = new Audio(
 var levelUpSound = new Audio(
   "https://cdn.pixabay.com/audio/2024/02/07/audio_a143337bbf.mp3"
 );
-
 var backgroundMusic = new Audio(
-    "https://cdn.pixabay.com/audio/2022/03/14/audio_213c38f164.mp3"
-  );
+  "https://cdn.pixabay.com/audio/2022/03/14/audio_213c38f164.mp3"
+);
+var backgroundMusic2 = new Audio(
+  "https://cdn.pixabay.com/audio/2022/03/14/audio_7a6ad08cb8.mp3"
+);
+
 function music() {
+  if (faseAtual > 7) {
+    backgroundMusic.pause();
+    backgroundMusic2.pause();
+    backgroundMusic2.loop = true;
+    backgroundMusic2.play();
+    backgroundMusic2.volume = 0.5;
+    return;
+  }
   backgroundMusic.pause();
   backgroundMusic.loop = true;
   backgroundMusic.play();
@@ -746,15 +787,15 @@ function music() {
 }
 
 function start(l) {
-  selectControl();
-  OnOff = false;
   removeOldgame();
-  runGame(LEVELS, DOMDisplay,l);
+  selectControl();
+  runGame(LEVELS, DOMDisplay, l);
   music();
-  const menu = document.getElementById("menu");
-  menu.style = "width:0;height:0;";
-  
+  openMenu();
 }
+
+let gameRunning = false;
+let animationFrameId;
 
 function removeOldgame() {
   const oldGames = document.getElementsByClassName("game");
@@ -763,15 +804,18 @@ function removeOldgame() {
     let oldGame = oldGames[i];
     oldGame.parentNode.removeChild(oldGame);
   }
-  
+
   totalCoin = 0;
   contCoin = 0;
+  if (animationFrameId) {
+    cancelAnimationFrame(animationFrameId);
+  }
+  gameRunning = false;
   status = "lost";
 }
 
 let OnOff = true;
 function openMenu() {
-  backgroundMusic.pause();
   const menu = document.getElementById("menu");
   if (OnOff) {
     menu.style = "width:0;height:0;";
@@ -779,27 +823,31 @@ function openMenu() {
   } else {
     menu.style = "width:100%;height:100%;";
     OnOff = true;
+    backgroundMusic.pause();
+    backgroundMusic2.pause();
+    removeOldgame();
   }
-  showFases()
+  showFases();
 }
 
 function selectControl() {
-  const controle= document.getElementById("controle");
+  const controle = document.getElementById("controle");
   const selectedRadio = document.querySelector(
     'input[name="controle"]:checked'
   );
-  if (selectedRadio.value == "touch") {    
-    touch=true;    
-    controle.style="display: flex;";
+  if (selectedRadio.value == "touch") {
+    gamepadSelect = false;
+    touch = true;
+    controle.style = "display: flex;";
     arrows = trackKeys(arrowCodes);
-  }
-  else if (selectedRadio.value == "analogico") {
+  } else if (selectedRadio.value == "analogico") {
+    touch = false;
     gamepadSelect = true;
-    controle.style="display: none;";
-    console.log("gamepad")
-  }
-  else {
-    controle.style="display: none;";
+    controle.style = "display: none;";
+    console.log("gamepad");
+    arrows = trackKeys(arrowCodes);
+  } else {
+    controle.style = "display: none;";
     console.log("setas");
     gamepadSelect = false;
     touch = false;
@@ -829,25 +877,92 @@ function movimentacao(direction, isPressed) {
   arrows = trackKeys(arrowCodes);
 }
 
-function showFases(){
+function showFases() {
   const ul = document.getElementById("fases");
   ul.innerHTML = "";
-  for(let i = 0; i < LEVELS.length; i++){    
+  for (let i = 0; i < LEVELS.length; i++) {
     const li = element("li", "");
     const a = element("a", "btn");
-    if(faseAtual == i){
+    if (faseAtual == i) {
       a.classList.add("Fatual");
-    } else if(faseAtual < i){
+    } else if (desb < i) {
       a.classList.add("Fbloq");
     }
+
     a.textContent = "Fase " + parseInt(i + 1);
-    a.onclick = function() { 
-      start(i); 
+    a.onclick = function () {
+      start(i);
       faseAtual = i;
-      localStorage.setItem('faseAtual', faseAtual); // Salva a fase atual no localStorage
+      localStorage.setItem("faseAtual", faseAtual); // Salva a fase atual no localStorage
     };
     li.appendChild(a);
     ul.appendChild(li);
   }
 }
 showFases();
+
+function generateRandomLevel() {
+  var width = 42;
+  var height = 21;
+  var level = [];
+
+  for (var y = 0; y < height; y++) {
+    var row = "";
+    for (var x = 0; x < width; x++) {
+      if (y === 0 || y === height - 1 || x === 0 || x === width - 1) {
+        row += "x"; // Paredes ao redor da fase
+      } else {
+        row += " "; // Espaço vazio
+      }
+    }
+    level.push(row);
+  }
+
+  // Adicionar plataformas horizontais de forma aleatória com espaço de 4 blocos na vertical
+  for (var y = 4; y < height - 4; y += 4) {
+    // Pular 5 linhas para garantir espaço de 4 blocos
+    for (var x = 1; x < width - 1; x++) {
+      if (Math.random() < 0.6) {
+        level[y] = level[y].substring(0, x) + "x" + level[y].substring(x + 1);
+      }
+    }
+  }
+
+  // Adicionar moedas, lava e gotas de lava
+  for (var y = 4; y < height - 1; y++) {
+    for (var x = 4; x < width - 1; x++) {
+      if (level[y][x] === " " && level[y + 1][x] === "x") {
+        // Apenas em cima de plataformas
+        var randomTile = Math.random();
+        if (randomTile < 0.1) {
+          level[y] = level[y].substring(0, x) + "o" + level[y].substring(x + 1); // Moeda
+        } else if (randomTile < 0.17) {
+          level[y] = level[y].substring(0, x) + "!" + level[y].substring(x + 1); // Lava
+        } else if (randomTile < 0.18) {
+          level[y] = level[y].substring(0, x) + "=" + level[y].substring(x + 1); // Gota de lava
+        }
+      }
+    }
+  }
+
+  // Colocar o personagem inicial na posição (1,1)
+  level[2] = level[1].substring(0, 3) + "@" + level[1].substring(2);
+
+  return level;
+}
+function addNewLevel() {
+  var newLevel = generateRandomLevel();
+  LEVELS.push(newLevel);
+  saveLevels(LEVELS);
+}
+
+function saveLevels(levels) {
+  localStorage.setItem("gameLevels", JSON.stringify(levels));
+}
+function loadLevels() {
+  const savedLevels = localStorage.getItem("gameLevels");
+  if (savedLevels) {
+    return JSON.parse(savedLevels);
+  }
+  return LEVELS; // Retorna os níveis padrão se não houver níveis salvos
+}
