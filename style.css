@@ -190,8 +190,8 @@ h2 {
   position: absolute;
   background-color: #123;
   color: #fff;
-  width: 250px;
-  height: 250px;
+  width: 0;
+  height: 0;
   display: flex;
   flex-direction: column;
   justify-content: center;
